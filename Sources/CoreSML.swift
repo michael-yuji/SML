@@ -237,23 +237,23 @@ public func style(_ attrs: String...) -> String {
 }
 
 extension String {
-    func color(_ name: String) -> String {
+    public func color(_ name: String) -> String {
         return "<span style=\"color:\(name)\">\(self)</span>"
     }
     
-    func link(url: String, _ attr: String...) -> String {
+    public func link(url: String, _ attr: String...) -> String {
         var attrs = attr
         attrs.append("href=\"\(url)\"")
         return tag("a", attrs){self}
     }
     
-    func span(_ attrs: String...) -> String {
+    public func span(_ attrs: String...) -> String {
         return "<span" + attrs.reduce(" ") { "\($0) \($1)" } + ">" + self + "</span>"
     }
 }
 
 extension Array {
-    func ul_li_formatting(_ i: String = "",
+    public func ul_li_formatting(_ i: String = "",
                           ulAttribute: @autoclosure (String) -> [String],
                           liAttribute: @autoclosure (String) -> [String],
                           recurive: Bool) -> String {
