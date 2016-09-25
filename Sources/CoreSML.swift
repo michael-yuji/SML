@@ -108,7 +108,7 @@ public func body(_ attributes: [String]) -> (String..., ([String]) -> String ) -
         return "<body\(attributes.reduce(""){"\($0) \($1)"})>\(fn(arguments))</body>"
     }
 }
-
+/* swift won't catch this
 public func body(_ attributes: [String], _ body: () -> String) -> String {
     
     return "<body\(attributes.reduce(""){"\($0) \($1)"})>\(body())</body>"
@@ -119,7 +119,7 @@ public func body(_ attributes: [String], _ body: () -> [String]) -> String {
     return "<body \(attributes.reduce(""){"\($0) \($1)"})>\(body().reduce(""){"\($0)\($1)"})</body>"
     
 }
-
+*/
 public func div(_ attributes: String...) -> (String..., ([String]) -> String ) -> String {
     return {
         (arguments: String..., fn: (([String]) -> String)) in
@@ -150,6 +150,7 @@ public func div(_ attributes: [String]) -> (String..., ([String]) -> String ) ->
     }
 }
 
+/*
 public func div(_ attributes: [String], _ body: () -> String) -> String {
     
     return "<div\(attributes.reduce(""){"\($0) \($1)"})>\(body())</div>"
@@ -160,7 +161,7 @@ public func div(_ attributes: [String], _ body: () -> [String]) -> String {
     return "<div \(attributes.reduce(""){"\($0) \($1)"})>\(body().reduce(""){"\($0)\($1)"})</div>"
     
 }
-
+*/
 /***/
 public func tag(_ tagname: String, _ attributes: String...) -> (String..., ([String]) -> String ) -> String {
     return {
@@ -191,7 +192,7 @@ public func tag(_ tagname: String, _ attributes: [String]) -> (String..., ([Stri
         return "<\(tagname)\(attributes.reduce(""){"\($0) \($1)"})>\(fn(arguments))</\(tagname)>"
     }
 }
-
+/*
 public func tag(_ tagname: String, _ attributes: [String], _ body: () -> String) -> String {
     
     return "<\(tagname)\(attributes.reduce(""){"\($0) \($1)"})>\(body())</\(tagname)>"
@@ -203,7 +204,7 @@ public func tag(_ tagname: String, _ attributes: [String], _ body: () -> [String
     return "<\(tagname)\(attributes.reduce(""){"\($0) \($1)"})>\(body().reduce(""){"\($0)\($1)"})</\(tagname)>"
     
 }
-
+*/
 public func tag(_ tagname: String, _ attributes: [String]) -> String {
     return "<\(tagname)\(attributes.reduce(""){"\($0) \($1)"})></\(tagname)>"
 }
@@ -244,7 +245,7 @@ extension String {
     public func link(url: String, _ attr: String...) -> String {
         var attrs = attr
         attrs.append("href=\"\(url)\"")
-        return tag("a", attrs){self}
+        return "<a" + attrs.reduce(" ") {"\($0) \($1)"} + "/>"
     }
     
     public func span(_ attrs: String...) -> String {
@@ -252,6 +253,7 @@ extension String {
     }
 }
 
+/*
 extension Array {
     public func ul_li_formatting(_ i: String = "",
                           ulAttribute: @autoclosure (String) -> [String],
@@ -273,7 +275,7 @@ extension Array {
     
 }
 
-
+*/
 
 
 
