@@ -245,7 +245,7 @@ extension String {
     public func link(url: String, _ attr: String...) -> String {
         var attrs = attr
         attrs.append("href=\"\(url)\"")
-        return "<a" + attrs.reduce(" ") {"\($0) \($1)"} + "/>"
+        return "<a" + attrs.reduce(" ") {"\($0) \($1)"} + ">" + self + "</a>"
     }
     
     public func span(_ attrs: String...) -> String {
