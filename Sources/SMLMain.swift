@@ -8,6 +8,7 @@
 
 import spartanX
 import SXF97
+import CoreCache
 import Foundation
 
 public enum SMLMode {
@@ -16,38 +17,95 @@ public enum SMLMode {
     case inet6(in_port_t)
 }
 
-public final class SML : SXStreamSocketService {
-    public var dataHandler: (SXQueue, Data) -> Bool
-    public var errHandler: ((SXQueue, Error) -> ())?
-    public var acceptedHandler: ((inout SXClientSocket) -> ())?
-    
-    public init(dataHandler: @escaping (SXQueue, Data) -> Bool) {
-        self.dataHandler = dataHandler
+public extension SXRouter {
+    mutating func addFileSystemSource(root dir: String, as uri: String) {
+        CacheContainer.shared.cacheFile(at: dir, as: dir, using: .lazyUp2Date, lifetime: .idleInterval(CCTimeInterval(sec: 10 * 60)), errHandle: nil)
     }
 }
 
-public func SMLInit(moduleName: String, mode: SMLMode = .unix, main: @escaping (HTTPRequest) -> HTTPResponse?) {
+public class SMLService : SXService {
+    var dict = [String: (HTTPRequest) -> HTTPResponse?]()
+    var furis = [String: String]()
+    public var supportingMethods: SendMethods = [.write, .send, .sendfile]
+    var container = CacheContainer(refreshResulotion: CCTimeInterval(milisec: 500))
+
+    public subscript(uri: String) -> ((HTTPRequest) -> HTTPResponse?)? {
+        get {
+            return dict[uri]
+        } set {
+            dict[uri] = newValue
+        }
+    }
+    
+    public func addStaticFileSource(root: String, as uri: String) {
+        var uri = uri
+        if uri.characters.first == "/" {
+            uri.remove(at: uri.startIndex)
+        }
+        self.furis[uri] = root
+    }
+    
+    public func received(data: Data, from connection: SXConnection) throws -> ShouldProceed {
+        let req = try HTTPRequest(data: data)
+        if let res_fn = self[req.uri.path] {
+            if let res = res_fn(req) {
+                do {
+                    try res.send(with: self.supportingMethods, using: connection.writeAgent)
+                    return true
+                } catch {
+                    throw error
+                }
+            }
+        }
+        
+        for (furi, real) in furis {
+            if furi.hasPrefix(req.uri.path) {
+                if let d = self.container[req.uri.path] {
+                    try connection.write(data: d)
+                    
+                } else {
+                    
+                    var xruri = req.uri.path
+                    xruri.removeSubrange(xruri.startIndex..<xruri.index(xruri.startIndex, offsetBy: furi.characters.count))
+                    self.container.cacheFile(at: "file:" + real + "/" + xruri, as: req.uri.path, using: .lazyUp2Date, lifetime: .idleInterval(CCTimeInterval(sec: 600)), errHandle: nil)
+                    self.container.cacheDynamicContent(as: real + "/" + xruri, using: .lazyUp2Date, lifetime: .strictInterval(CCTimeInterval(sec: 10)), generator: { () -> Data in
+                        if let filed = self.container["file:" + real + "/" + xruri] {
+                            return HTTPResponse(status: 200, with: filed).raw
+                        } else {
+                            return HTTPResponse(status: 404, text: "SML: 404 NOT FOUND").raw
+                        }
+                    })
+                    
+                    if let d = self.container[req.uri.path] {
+                        try connection.write(data: d)
+                    } else {
+                        return false
+                    }
+                }
+            }
+        }
+        
+        return false
+        
+    }
+    
+    public func exceptionRaised(_ exception: Error, on connection: SXConnection) -> ShouldProceed {
+        return false
+    }
+}
+
+public func SMLInit(moduleName: String, mode: SMLMode = .unix, router service: SMLService) {
+    
     SXKernelManager.initializeDefault()
     signal(SIGPIPE, SIG_IGN)
+    
     let domain = "/tmp/spartanX-\(moduleName)"
     if FileManager.default.fileExists(atPath: domain) {
         unlink(domain)
     }
-
-    
-    let service =  SML { queue, data in
-        guard let httpRequest = try? HTTPRequest(data: data) else {
-            return false
-        }
-        
-        if let raw = main(httpRequest) {
-            _ = try? queue.writeAgent.write(data: raw.raw)
-        }
-        return true
-    }
     
     var server: SXServerSocket!
-    
+
     switch mode {
     case .unix:
         server = try! SXServerSocket.unix(service: service,
@@ -63,9 +121,7 @@ public func SMLInit(moduleName: String, mode: SMLMode = .unix, main: @escaping (
     }
     
     SXKernelManager.default!.manage(server, setup: nil)
-    while (true) {
-        sleep(99999)
-    }
+    dispatchMain()
 }
 
 
