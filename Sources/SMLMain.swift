@@ -37,12 +37,25 @@ public class SMLService : SXService {
         }
     }
     
+    public init() {
+        self.set404(text: html {[
+            tag("h1") {"SML - 404 not found"},
+            tag("p") { "The page you trying to reach is not available" }
+        ]})
+    }
+    
     public func addStaticFileSource(root: String, as uri: String) {
         var uri = uri
         if uri.characters.first == "/" {
             uri.remove(at: uri.startIndex)
         }
         self.furis[uri] = root
+    }
+    
+    public func set404(text: String) {
+        self.container.cacheDynamicContent(as: "404", using: .once, lifetime: .forever) {
+             HTTPResponse(status: 404, text: text).raw
+        }
     }
     
     public func received(data: Data, from connection: SXConnection) throws -> ShouldProceed {
@@ -78,11 +91,14 @@ public class SMLService : SXService {
                     
                     if let d = self.container[req.uri.path] {
                         try connection.write(data: d)
-                    } else {
-                        return false
                     }
                 }
             }
+        }
+        
+        if let resd = self.container["404"] {
+            try connection.write(data: resd)
+            return true
         }
         
         return false
