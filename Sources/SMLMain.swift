@@ -46,10 +46,13 @@ public class SMLService : SXService {
     
     public func addStaticFileSource(root: String, as uri: String) {
         var uri = uri
-        if uri.characters.first == "/" {
-            uri.remove(at: uri.startIndex)
-        }
         self.furis[uri] = root
+    }
+    
+    public func addStaticContent(uri: String, content: Data) {
+        self.container.cacheDynamicContent(as: uri, using: .once, lifetime: .forever) {
+            content
+        }
     }
     
     public func set404(text: String) {
@@ -71,8 +74,12 @@ public class SMLService : SXService {
             }
         }
         
+        if let d = self.container[req.uri.path] {
+            try connection.write(data: d)
+        }
+        
         for (furi, real) in furis {
-            if furi.hasPrefix(req.uri.path) {
+            if req.uri.path.hasPrefix(furi) {
                 if let d = self.container[req.uri.path] {
                     try connection.write(data: d)
                     
@@ -81,17 +88,12 @@ public class SMLService : SXService {
                     var xruri = req.uri.path
                     xruri.removeSubrange(xruri.startIndex..<xruri.index(xruri.startIndex, offsetBy: furi.characters.count))
                     self.container.cacheFile(at: "file:" + real + "/" + xruri, as: req.uri.path, using: .lazyUp2Date, lifetime: .idleInterval(CCTimeInterval(sec: 600)), errHandle: nil)
-                    self.container.cacheDynamicContent(as: real + "/" + xruri, using: .lazyUp2Date, lifetime: .strictInterval(CCTimeInterval(sec: 10)), generator: { () -> Data in
+                    self.container.cacheDynamicContent(as: req.uri.path, using: .lazyUp2Date, lifetime: .strictInterval(CCTimeInterval(sec: 10)), generator: { () -> Data in
                         if let filed = self.container["file:" + real + "/" + xruri] {
                             return HTTPResponse(status: 200, with: filed).raw
-                        } else {
-                            return HTTPResponse(status: 404, text: "SML: 404 NOT FOUND").raw
                         }
+                        return self.container["404"]!
                     })
-                    
-                    if let d = self.container[req.uri.path] {
-                        try connection.write(data: d)
-                    }
                 }
             }
         }
