@@ -28,7 +28,7 @@ public class SMLService : SXService {
     var furis = [String: String]()
     public var supportingMethods: SendMethods = [.write, .send, .sendfile]
     var container = CacheContainer(refreshResulotion: CCTimeInterval(milisec: 500))
-
+    
     public subscript(uri: String) -> ((HTTPRequest) -> HTTPResponse?)? {
         get {
             return dict[uri]
@@ -37,27 +37,30 @@ public class SMLService : SXService {
         }
     }
     
+    public func setRoute(uri: String, handler: @escaping (HTTPRequest) -> HTTPResponse) {
+        self[uri] = handler
+    }
+    
     public init() {
         self.set404(text: html {[
             tag("h1") {"SML - 404 not found"},
             tag("p") { "The page you trying to reach is not available" }
-        ]})
+            ]})
     }
     
     public func addStaticFileSource(root: String, as uri: String) {
-        var uri = uri
         self.furis[uri] = root
     }
     
     public func addStaticContent(uri: String, content: Data) {
         self.container.cacheDynamicContent(as: uri, using: .once, lifetime: .forever) {
-            content
+            HTTPResponse(status: 200, with: content).raw
         }
     }
     
     public func set404(text: String) {
         self.container.cacheDynamicContent(as: "404", using: .once, lifetime: .forever) {
-             HTTPResponse(status: 404, text: text).raw
+            HTTPResponse(status: 404, text: text).raw
         }
     }
     
@@ -76,24 +79,29 @@ public class SMLService : SXService {
         
         if let d = self.container[req.uri.path] {
             try connection.write(data: d)
+            return true
         }
         
         for (furi, real) in furis {
             if req.uri.path.hasPrefix(furi) {
                 if let d = self.container[req.uri.path] {
                     try connection.write(data: d)
-                    
+                    return true
                 } else {
                     
                     var xruri = req.uri.path
                     xruri.removeSubrange(xruri.startIndex..<xruri.index(xruri.startIndex, offsetBy: furi.characters.count))
-                    self.container.cacheFile(at: "file:" + real + "/" + xruri, as: req.uri.path, using: .lazyUp2Date, lifetime: .idleInterval(CCTimeInterval(sec: 600)), errHandle: nil)
+                    
+                    self.container.cacheFile(at: real + xruri, as: "file:" + req.uri.path, using: .lazyUp2Date, lifetime: .idleInterval(CCTimeInterval(sec: 600)), errHandle: nil)
                     self.container.cacheDynamicContent(as: req.uri.path, using: .lazyUp2Date, lifetime: .strictInterval(CCTimeInterval(sec: 10)), generator: { () -> Data in
-                        if let filed = self.container["file:" + real + "/" + xruri] {
+                        if let filed = self.container["file:" + req.uri.path] {
                             return HTTPResponse(status: 200, with: filed).raw
                         }
                         return self.container["404"]!
                     })
+                    
+                    try connection.write(data: container[req.uri.path]!)
+                    return true
                 }
             }
         }
@@ -123,7 +131,7 @@ public func SMLInit(moduleName: String, mode: SMLMode = .unix, router service: S
     }
     
     var server: SXServerSocket!
-
+    
     switch mode {
     case .unix:
         server = try! SXServerSocket.unix(service: service,
